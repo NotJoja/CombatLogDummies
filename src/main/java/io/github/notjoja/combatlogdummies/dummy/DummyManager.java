@@ -5,6 +5,7 @@ import io.github.notjoja.combatlogdummies.hook.AxGravesHook;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
+import org.bukkit.GameRules;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
@@ -78,6 +79,12 @@ public final class DummyManager {
         r.expiryMillis = System.currentTimeMillis() + remainingMillis;
         r.contents = player.getInventory().getContents().clone();
         r.xp = player.calculateTotalExperiencePoints();
+        for (var prop : player.getPlayerProfile().getProperties()) {
+            if (prop.getName().equals("textures")) {
+                r.texture = prop.getValue();
+                break;
+            }
+        }
 
         AttributeInstance maxAttr = player.getAttribute(Attribute.MAX_HEALTH);
         double max = maxAttr == null ? 20 : maxAttr.getValue();
@@ -185,24 +192,46 @@ public final class DummyManager {
         r.health = 0;
         save();
 
-        List<ItemStack> items = new ArrayList<>();
-        for (ItemStack i : r.contents) {
-            if (i != null && !i.getType().isAir()) items.add(i);
-        }
         Location loc = r.location;
+        World w = loc.getWorld();
+        boolean axgraves = plugin.settings().useAxGraves && Bukkit.getPluginManager().isPluginEnabled("AxGraves");
 
-        if (plugin.settings().useAxGraves && Bukkit.getPluginManager().isPluginEnabled("AxGraves")) {
+        // keepInventory: a normal death would keep items/xp, so the dummy must not drop them either,
+        // unless AxGraves is configured to override keepInventory / keepLevel.
+        boolean keep = plugin.settings().respectKeepInventory
+                && Boolean.TRUE.equals(w.getGameRuleValue(GameRules.KEEP_INVENTORY));
+        boolean storeItems = !keep || (axgraves && axGravesFlag("override-keep-inventory"));
+        boolean storeXp = !keep || (axgraves && axGravesFlag("override-keep-level"));
+        r.clearItems = storeItems;
+        r.clearXp = storeXp;
+        save();
+
+        List<ItemStack> items = new ArrayList<>();
+        if (storeItems) {
+            for (ItemStack i : r.contents) {
+                if (i != null && !i.getType().isAir()) items.add(i);
+            }
+        }
+        int xp = storeXp ? r.xp : 0;
+        if (items.isEmpty() && xp <= 0) return;
+
+        if (axgraves && !items.isEmpty()) {
             try {
-                AxGravesHook.createGrave(loc, Bukkit.getOfflinePlayer(owner), items, r.xp);
+                AxGravesHook.createGrave(loc, Bukkit.getOfflinePlayer(owner), items, xp, r.texture);
                 return;
             } catch (Throwable t) {
                 plugin.getLogger().warning("AxGraves hook failed, dropping items instead: " + t);
             }
         }
-        World w = loc.getWorld();
         for (ItemStack i : items) w.dropItemNaturally(loc, i);
-        int orb = Math.min(r.xp, 100);
+        int orb = Math.min(xp, 100);
         if (orb > 0) w.spawn(loc, ExperienceOrb.class, o -> o.setExperience(orb));
+    }
+
+    private boolean axGravesFlag(String key) {
+        var ax = Bukkit.getPluginManager().getPlugin("AxGraves");
+        if (ax == null) return false;
+        return YamlConfiguration.loadConfiguration(new File(ax.getDataFolder(), "config.yml")).getBoolean(key, false);
     }
 
     // ---------------------------------------------------------------- persistence
@@ -222,6 +251,9 @@ public final class DummyManager {
                 List<?> list = s.getList("contents", List.of());
                 r.contents = list.stream().map(o -> o instanceof ItemStack i ? i : null).toArray(ItemStack[]::new);
                 r.xp = s.getInt("xp");
+                r.clearItems = s.getBoolean("clear-items", true);
+                r.clearXp = s.getBoolean("clear-xp", true);
+                r.texture = s.getString("texture");
                 String eid = s.getString("entity");
                 r.entityId = eid == null ? null : UUID.fromString(eid);
                 r.state = DummyRecord.State.valueOf(s.getString("state", "ALIVE"));
@@ -242,6 +274,9 @@ public final class DummyManager {
             y.set(k + ".expiry", r.expiryMillis);
             y.set(k + ".contents", java.util.Arrays.asList(r.contents));
             y.set(k + ".xp", r.xp);
+            y.set(k + ".clear-items", r.clearItems);
+            y.set(k + ".clear-xp", r.clearXp);
+            y.set(k + ".texture", r.texture);
             y.set(k + ".entity", r.entityId == null ? null : r.entityId.toString());
             y.set(k + ".state", r.state.name());
         }

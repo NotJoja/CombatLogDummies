@@ -61,8 +61,8 @@ public final class CombatTagListener implements Listener {
         double threshold = cfg.startBelowHealth;
         if (threshold > 0 && victim.getHealth() - e.getFinalDamage() > threshold) return;
 
-        if (cfg.tagMode != PluginConfig.TagMode.VICTIM) plugin.combat().tag(attacker);
-        if (cfg.tagMode != PluginConfig.TagMode.ATTACKER) plugin.combat().tag(victim);
+        if (cfg.tagMode != PluginConfig.TagMode.VICTIM) plugin.combat().tag(attacker, victim.getUniqueId());
+        if (cfg.tagMode != PluginConfig.TagMode.ATTACKER) plugin.combat().tag(victim, attacker.getUniqueId());
     }
 
     /** A player hitting a combat-log dummy behaves like hitting the (offline) owner. */
@@ -73,7 +73,7 @@ public final class CombatTagListener implements Listener {
         if (attacker == null) return;
         var cfg = plugin.settings();
         if (cfg.startBelowHealth > 0 && dummy.getHealth() - e.getFinalDamage() > cfg.startBelowHealth) return;
-        if (cfg.tagMode != PluginConfig.TagMode.VICTIM) plugin.combat().tag(attacker);
+        if (cfg.tagMode != PluginConfig.TagMode.VICTIM) plugin.combat().tag(attacker, owner);
         if (cfg.tagMode != PluginConfig.TagMode.ATTACKER
                 && !cfg.ignoredWorlds.contains(dummy.getWorld().getName().toLowerCase(java.util.Locale.ROOT))) {
             plugin.dummies().refresh(owner);
@@ -111,7 +111,7 @@ public final class CombatTagListener implements Listener {
         Player victim = e.getEntity();
         plugin.combat().untag(victim.getUniqueId());
         Player killer = victim.getKiller();
-        if (killer != null && plugin.settings().untagOnKill) plugin.combat().untag(killer, true);
+        if (killer != null && !killer.equals(victim)) plugin.combat().opponentKilled(killer, victim.getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

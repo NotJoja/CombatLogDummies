@@ -10,7 +10,6 @@ combat-log:
     timer:
       actionbar: "<red>Combat: {timeLeft}"
       bossbar-title: "<red>Combat: {timeLeft}s"
-      refreshed: "<yellow>Your combat timer has been refreshed"
       ended: "<green>You are no longer in combat."
 
 commands:

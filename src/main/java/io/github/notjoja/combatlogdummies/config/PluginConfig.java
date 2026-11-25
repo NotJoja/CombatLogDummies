@@ -39,6 +39,7 @@ public final class PluginConfig {
     public boolean dummyEnabled;
     public String dummyNameFormat;
     public boolean useAxGraves;
+    public boolean respectKeepInventory;
 
     public PluginConfig(CombatLogDummies plugin) {
         this.plugin = plugin;
@@ -74,6 +75,7 @@ public final class PluginConfig {
         dummyEnabled = c.getBoolean("dummy.enabled", true);
         dummyNameFormat = c.getString("dummy.name-format", "{player}");
         useAxGraves = c.getBoolean("dummy.use-axgraves", true);
+        respectKeepInventory = c.getBoolean("dummy.respect-keep-inventory", true);
     }
 
     private static List<String> lower(List<String> in) {

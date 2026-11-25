@@ -19,6 +19,8 @@ public final class CombatManager {
     private final CombatLogDummies plugin;
     private final Map<UUID, Long> expiry = new HashMap<>();
     private final Map<UUID, BossBar> bars = new HashMap<>();
+    /** player -> (opponent -> time the fight with that opponent runs out). Used to untag once all opponents are dead. */
+    private final Map<UUID, Map<UUID, Long>> opponents = new HashMap<>();
     private BukkitTask task;
 
     public CombatManager(CombatLogDummies plugin) {
@@ -40,16 +42,33 @@ public final class CombatManager {
         return !plugin.settings().ignoredWorlds.contains(p.getWorld().getName().toLowerCase(Locale.ROOT));
     }
 
+    /** Tags {@code p} as fighting {@code opponent} (a player UUID, or a dummy owner's UUID). */
+    public void tag(Player p, UUID opponent) {
+        if (!canBeTagged(p)) return;
+        opponents.computeIfAbsent(p.getUniqueId(), k -> new HashMap<>())
+                .put(opponent, System.currentTimeMillis() + plugin.settings().durationSeconds * 1000L);
+        tag(p);
+    }
+
+    /**
+     * {@code killer} killed {@code dead}. Drops that opponent; if the killer has no other active opponents
+     * left, their combat tag is removed (when untag-on-kill is enabled).
+     */
+    public void opponentKilled(Player killer, UUID dead) {
+        if (!plugin.settings().untagOnKill) return;
+        Map<UUID, Long> map = opponents.get(killer.getUniqueId());
+        if (map == null) return; // not fighting anyone we know about (e.g. tagged by a pearl): leave the timer alone
+        map.remove(dead);
+        long now = System.currentTimeMillis();
+        map.values().removeIf(t -> t <= now);
+        if (map.isEmpty()) untag(killer, true);
+    }
+
     public void tag(Player p) {
         if (!canBeTagged(p)) return;
         var cfg = plugin.settings();
         long fullMs = cfg.durationSeconds * 1000L;
-        long before = remainingMillis(p.getUniqueId());
         expiry.put(p.getUniqueId(), System.currentTimeMillis() + fullMs);
-        // Tell the player when a running timer is topped back up (skipped when it was already ~full, to avoid spam).
-        if (before > 0 && before < fullMs - 1000L) {
-            p.sendMessage(plugin.messages().get("combat-log.messages.timer.refreshed"));
-        }
         if (cfg.elytraDisabled && p.isGliding()) p.setGliding(false);
         for (PotionEffect e : cfg.tagEffects) p.addPotionEffect(e);
         display(p);
@@ -80,6 +99,7 @@ public final class CombatManager {
     /** Removes the tag silently. Returns true if the player was tagged. */
     public boolean untag(UUID id) {
         boolean was = expiry.remove(id) != null;
+        opponents.remove(id);
         hideBar(id);
         return was;
     }
@@ -97,9 +117,11 @@ public final class CombatManager {
             Player p = Bukkit.getPlayer(en.getKey());
             if (p == null) {
                 it.remove();
+                opponents.remove(en.getKey());
                 hideBar(en.getKey());
             } else if (en.getValue() <= now) {
                 it.remove();
+                opponents.remove(en.getKey());
                 hideBar(en.getKey());
                 p.sendActionBar(plugin.messages().get("combat-log.messages.timer.ended"));
             } else {

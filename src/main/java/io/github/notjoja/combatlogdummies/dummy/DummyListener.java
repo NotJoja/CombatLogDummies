@@ -51,10 +51,12 @@ public final class DummyListener implements Listener {
         if (r.state == DummyRecord.State.DEAD) {
             plugin.dummies().remove(p.getUniqueId());
             silentDeaths.add(p.getUniqueId());
-            p.getInventory().clear();
-            p.setTotalExperience(0);
-            p.setLevel(0);
-            p.setExp(0f);
+            if (r.clearItems) p.getInventory().clear();
+            if (r.clearXp) {
+                p.setTotalExperience(0);
+                p.setLevel(0);
+                p.setExp(0f);
+            }
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (p.isOnline()) {
                     p.setHealth(0);
@@ -100,6 +102,8 @@ public final class DummyListener implements Listener {
         e.getDrops().clear();
         e.setDroppedExp(0);
         plugin.dummies().handleDeath(z, owner);
+        Player killer = z.getKiller();
+        if (killer != null) plugin.combat().opponentKilled(killer, owner);
     }
 
     /** Removes dummy zombies that no longer have a matching live record (e.g. record expired while chunk was unloaded). */

@@ -15,7 +15,12 @@ public final class DummyRecord {
     public long expiryMillis;
     public ItemStack[] contents;
     public int xp;
+    /** Base64 skin texture of the owner, so AxGraves can show their head while they are offline. */
+    public String texture;
     public UUID entityId;
+    /** Set when the dummy dies: what the owner loses on their next login (false = kept via keepInventory). */
+    public boolean clearItems = true;
+    public boolean clearXp = true;
     public State state = State.ALIVE;
 
     public DummyRecord(UUID owner) {

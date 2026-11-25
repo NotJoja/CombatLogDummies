@@ -48,4 +48,5 @@ combat-log:
 dummy:
   enabled: true
   name-format: "{player}"
+  respect-keep-inventory: true           # true: a dead dummy follows the keepInventory gamerule (and AxGraves' override-keep-inventory/-level). false: dummies always drop everything
   use-axgraves: true                     # Create an AxGraves grave when the dummy dies (if AxGraves is installed)
