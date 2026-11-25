@@ -115,7 +115,8 @@ public final class DummyListener implements Listener {
             if (owner == null) continue;
             DummyRecord r = plugin.dummies().get(owner);
             boolean valid = r != null && r.state == DummyRecord.State.ALIVE
-                    && z.getUniqueId().equals(r.entityId) && r.expiryMillis > System.currentTimeMillis();
+                    && z.getUniqueId().equals(r.entityId)
+                    && (plugin.dummies().isPinned(owner) || r.expiryMillis > System.currentTimeMillis());
             if (!valid) z.remove();
         }
     }

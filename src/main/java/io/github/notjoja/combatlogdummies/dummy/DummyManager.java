@@ -37,6 +37,8 @@ public final class DummyManager {
     private final NamespacedKey ownerKey;
     private final Map<UUID, DummyRecord> records = new HashMap<>();
     private final File file;
+    /** Dummies that must not expire (e.g. while their owner is in a duel). Not persisted. */
+    private final java.util.Set<UUID> pinned = new java.util.HashSet<>();
 
     public DummyManager(CombatLogDummies plugin) {
         this.plugin = plugin;
@@ -148,6 +150,7 @@ public final class DummyManager {
 
     /** Removes the dummy entity + record entirely. */
     public void remove(UUID owner) {
+        pinned.remove(owner);
         DummyRecord r = records.remove(owner);
         if (r == null) return;
         Zombie z = findEntity(r);
@@ -170,9 +173,26 @@ public final class DummyManager {
     private void expireTick() {
         long now = System.currentTimeMillis();
         for (DummyRecord r : new ArrayList<>(records.values())) {
-            if (r.state == DummyRecord.State.ALIVE && r.expiryMillis <= now) expire(r);
+            if (r.state == DummyRecord.State.ALIVE && !pinned.contains(r.owner) && r.expiryMillis <= now) expire(r);
         }
     }
+
+    // ---------------------------------------------------------------- public API (other plugins)
+
+    /** Keeps the dummy of {@code owner} alive until it dies or is unpinned; it will not expire or be cleaned up. */
+    public void pin(UUID owner) { pinned.add(owner); }
+
+    /** Releases a pin; the dummy then lingers for a full combat duration before expiring as usual. */
+    public void unpin(UUID owner) {
+        if (!pinned.remove(owner)) return;
+        DummyRecord r = records.get(owner);
+        if (r != null && r.state == DummyRecord.State.ALIVE) {
+            r.expiryMillis = System.currentTimeMillis() + plugin.settings().durationSeconds * 1000L;
+            save();
+        }
+    }
+
+    public boolean isPinned(UUID owner) { return pinned.contains(owner); }
 
     /** Resets the dummy's (i.e. its owner's) combat timer back to full. */
     public void refresh(UUID owner) {
@@ -185,6 +205,17 @@ public final class DummyManager {
     // ---------------------------------------------------------------- death
 
     public void handleDeath(Zombie zombie, UUID owner) {
+        DummyRecord before = records.get(owner);
+        boolean wasAlive = before != null && before.state == DummyRecord.State.ALIVE;
+        handleDeathInternal(zombie, owner);
+        pinned.remove(owner);
+        if (wasAlive) {
+            Bukkit.getPluginManager().callEvent(
+                    new io.github.notjoja.combatlogdummies.api.DummyDeathEvent(owner, zombie, zombie.getKiller()));
+        }
+    }
+
+    private void handleDeathInternal(Zombie zombie, UUID owner) {
         DummyRecord r = records.get(owner);
         if (r == null || r.state != DummyRecord.State.ALIVE) return;
         r.state = DummyRecord.State.DEAD;
