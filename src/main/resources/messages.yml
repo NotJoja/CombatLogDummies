@@ -1,0 +1,24 @@
+combat-log:
+  messages:
+    combat-log: "<red>{player} has combat logged!"
+    elytra-use-denied: "<light_purple>You can't use elytra in combat"
+    teleporting-denied: "<light_purple>You can't teleport in combat"
+    blocked-command: "<red>You can't use this command in combat"
+    riptide-denied: "<red>You can't use riptide in combat"
+    mending-denied: "<light_purple>Mending is disabled in combat"
+    dummy-killed: "<red>Your combat log dummy was killed while you were offline."
+    timer:
+      actionbar: "<red>Combat: {timeLeft}"
+      bossbar-title: "<red>Combat: {timeLeft}s"
+      refreshed: "<yellow>Your combat timer has been refreshed"
+      ended: "<green>You are no longer in combat."
+
+commands:
+  combatlog:
+    no-permission: "<red>You do not have permission to use this command."
+    usage: "<yellow>Usage: <gray>/combatlog <reload|status <player>|untag <player>>"
+    reload-success: "<green>CombatLogDummies config and messages reloaded."
+    player-not-found: "<red>Player not found: <white>{player}"
+    untag-success: "<green>Removed combat tag from <white>{player}"
+    untag-not-in-combat: "<yellow>Player <white>{player} <yellow>was not in combat."
+    status: "<gold>{player}<gray>: in combat <white>{value}<gray>, time left <white>{time}s"

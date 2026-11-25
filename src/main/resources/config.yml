@@ -1,0 +1,51 @@
+config-version: 1
+
+combat-log:
+  timer:
+    duration-seconds: 15                 # Combat timer duration
+    display: actionbar                   # actionbar | bossbar
+
+  restrictions:
+    elytra:
+      disabled-in-combat: true
+    teleporting:
+      disabled-in-combat: false          # Disable any teleport (commands, plugins) while in combat
+      allow-enderpearl: false            # Still allow Ender Pearls while teleporting is disabled
+    mending:
+      disabled-in-combat: true
+    riptide:
+      stop: false
+      cooldown: 10000                    # riptide cooldown (ms)
+
+  punishment:
+    damage: 5.0                          # Damage dealt for trying a restricted action (0 = off)
+
+  triggers:
+    tag-mode: both                       # both | attacker | victim
+    start-below-health: 0                # Only tag when the hit player is at or below this health (0 = always)
+    enderpearl:
+      set-combat-on-land: false         # your own pearl never refreshes combat unless you enable this
+      only-if-already-in-combat: false
+    untag-on-kill: true
+    explosions:
+      set-combat-on-explosion: true      # End crystals / TNT / beds etc. set combat
+
+  ignored-worlds:
+    - "ffa"
+
+  command-restrictions:
+    mode: blacklist                      # blacklist | whitelist
+    commands:
+      - "tpa"
+
+  tag-effects: []
+  # - type: SLOWNESS
+  #   duration-seconds: 15
+  #   amplifier: 0
+  #   show-particles: true
+
+# What happens when a player logs out while in combat
+dummy:
+  enabled: true
+  name-format: "{player}"
+  use-axgraves: true                     # Create an AxGraves grave when the dummy dies (if AxGraves is installed)

@@ -1,0 +1,139 @@
+package io.github.notjoja.combatlogdummies.combat;
+
+import io.github.notjoja.combatlogdummies.CombatLogDummies;
+import net.kyori.adventure.bossbar.BossBar;
+import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+
+public final class CombatManager {
+    private final CombatLogDummies plugin;
+    private final Map<UUID, Long> expiry = new HashMap<>();
+    private final Map<UUID, BossBar> bars = new HashMap<>();
+    private BukkitTask task;
+
+    public CombatManager(CombatLogDummies plugin) {
+        this.plugin = plugin;
+    }
+
+    public void start() {
+        task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+    }
+
+    public void shutdown() {
+        if (task != null) task.cancel();
+        for (UUID id : bars.keySet().toArray(UUID[]::new)) hideBar(id);
+    }
+
+    public boolean canBeTagged(Player p) {
+        if (p.hasPermission("combatlog.bypass")) return false;
+        if (p.getGameMode() == GameMode.CREATIVE || p.getGameMode() == GameMode.SPECTATOR) return false;
+        return !plugin.settings().ignoredWorlds.contains(p.getWorld().getName().toLowerCase(Locale.ROOT));
+    }
+
+    public void tag(Player p) {
+        if (!canBeTagged(p)) return;
+        var cfg = plugin.settings();
+        long fullMs = cfg.durationSeconds * 1000L;
+        long before = remainingMillis(p.getUniqueId());
+        expiry.put(p.getUniqueId(), System.currentTimeMillis() + fullMs);
+        // Tell the player when a running timer is topped back up (skipped when it was already ~full, to avoid spam).
+        if (before > 0 && before < fullMs - 1000L) {
+            p.sendMessage(plugin.messages().get("combat-log.messages.timer.refreshed"));
+        }
+        if (cfg.elytraDisabled && p.isGliding()) p.setGliding(false);
+        for (PotionEffect e : cfg.tagEffects) p.addPotionEffect(e);
+        display(p);
+    }
+
+    /** Puts a player into combat with a specific remaining time (used when rejoining after a combat log). */
+    public void tagFor(Player p, long millis) {
+        if (millis <= 0) return;
+        expiry.put(p.getUniqueId(), System.currentTimeMillis() + millis);
+        display(p);
+    }
+
+    public boolean isInCombat(Player p) {
+        return isInCombat(p.getUniqueId());
+    }
+
+    public boolean isInCombat(UUID id) {
+        Long e = expiry.get(id);
+        return e != null && e > System.currentTimeMillis();
+    }
+
+    /** Remaining millis, 0 if not in combat. */
+    public long remainingMillis(UUID id) {
+        Long e = expiry.get(id);
+        return e == null ? 0 : Math.max(0, e - System.currentTimeMillis());
+    }
+
+    /** Removes the tag silently. Returns true if the player was tagged. */
+    public boolean untag(UUID id) {
+        boolean was = expiry.remove(id) != null;
+        hideBar(id);
+        return was;
+    }
+
+    public void untag(Player p, boolean notify) {
+        boolean was = untag(p.getUniqueId());
+        if (was && notify) p.sendActionBar(plugin.messages().get("combat-log.messages.timer.ended"));
+    }
+
+    private void tick() {
+        Iterator<Map.Entry<UUID, Long>> it = expiry.entrySet().iterator();
+        long now = System.currentTimeMillis();
+        while (it.hasNext()) {
+            var en = it.next();
+            Player p = Bukkit.getPlayer(en.getKey());
+            if (p == null) {
+                it.remove();
+                hideBar(en.getKey());
+            } else if (en.getValue() <= now) {
+                it.remove();
+                hideBar(en.getKey());
+                p.sendActionBar(plugin.messages().get("combat-log.messages.timer.ended"));
+            } else {
+                display(p);
+            }
+        }
+    }
+
+    private void display(Player p) {
+        long ms = remainingMillis(p.getUniqueId());
+        int left = (int) Math.ceil(ms / 1000.0);
+        int max = plugin.settings().durationSeconds;
+        Map<String, String> ph = Map.of("timeLeft", String.valueOf(left), "maxTime", String.valueOf(max));
+        if (plugin.settings().bossbar) {
+            Component title = plugin.messages().get("combat-log.messages.timer.bossbar-title", ph);
+            float progress = Math.max(0f, Math.min(1f, ms / (max * 1000f)));
+            BossBar bar = bars.get(p.getUniqueId());
+            if (bar == null) {
+                bar = BossBar.bossBar(title, progress, BossBar.Color.RED, BossBar.Overlay.PROGRESS);
+                bars.put(p.getUniqueId(), bar);
+                p.showBossBar(bar);
+            } else {
+                bar.name(title);
+                bar.progress(progress);
+            }
+        } else {
+            p.sendActionBar(plugin.messages().get("combat-log.messages.timer.actionbar", ph));
+        }
+    }
+
+    private void hideBar(UUID id) {
+        BossBar bar = bars.remove(id);
+        if (bar == null) return;
+        Player p = Bukkit.getPlayer(id);
+        if (p != null) p.hideBossBar(bar);
+    }
+}

@@ -1,0 +1,21 @@
+name: CombatLogDummies
+version: '${version}'
+main: io.github.notjoja.combatlogdummies.CombatLogDummies
+api-version: '26.3'
+description: Combat tag that leaves a zombie dummy behind when a player combat logs.
+authors: [NotJoja]
+
+dependencies:
+  server:
+    AxGraves:
+      load: BEFORE
+      required: false
+      join-classpath: true
+
+permissions:
+  combatlog.admin:
+    description: Access to CombatLogDummies admin commands
+    default: op
+  combatlog.bypass:
+    description: Exempts the player from combat tagging and restrictions
+    default: false
