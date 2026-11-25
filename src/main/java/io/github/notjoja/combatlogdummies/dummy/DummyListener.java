@@ -10,6 +10,9 @@ import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityCombustByBlockEvent;
+import org.bukkit.event.entity.EntityCombustByEntityEvent;
+import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -117,7 +120,16 @@ public final class DummyListener implements Listener {
             boolean valid = r != null && r.state == DummyRecord.State.ALIVE
                     && z.getUniqueId().equals(r.entityId)
                     && (plugin.dummies().isPinned(owner) || r.expiryMillis > System.currentTimeMillis());
-            if (!valid) z.remove();
+            if (!valid) { z.remove(); continue; }
+            z.setShouldBurnInDay(false); // not reliably persisted across restarts
         }
+    }
+
+    /** Dummies must never burn from daylight (lava/fire/burning arrows from entities or blocks still apply). */
+    @EventHandler(ignoreCancelled = true)
+    public void onDummyCombust(EntityCombustEvent e) {
+        if (e instanceof EntityCombustByBlockEvent || e instanceof EntityCombustByEntityEvent) return;
+        if (!(e.getEntity() instanceof Zombie z)) return;
+        if (plugin.dummies().ownerOf(z) != null) e.setCancelled(true);
     }
 }
